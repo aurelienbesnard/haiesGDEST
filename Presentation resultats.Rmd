@@ -1,0 +1,314 @@
+---
+title: "Analyses (très) préliminaires des données"
+author: "Aurélien Besnard"
+date: "Dernière mise à jour: `r Sys.Date()`"
+output:
+  xaringan::moon_reader:
+    css: [default, "slides-theme.css"]
+    lib_dir: libs
+    nature:
+      ratio: '16:9' 
+      highlightStyle: github
+      highlightLines: true
+      slideNumberFormat: ''
+      titleSlideClass: [center, middle]
+---
+
+```{r setup, include=FALSE, echo=FALSE, cache = FALSE}
+options(htmltools.dir.version = FALSE)
+knitr::opts_chunk$set(comment = "")
+library(tidyverse)
+theme_set(theme_light())
+update_geom_defaults("point", list(size = 2)) 
+```
+
+# OBJECTIF DE L'ETUDE
+
+Evaluer s'il y a systématiquement des espèces protégées dans les haies pour prendre des arrêtés de protection
+
+- Besoin de travailler à l'échelle du département pour les arrêtés
+
+- Attention à ne pas échantillonner que les haies de bonnes qualités ou les haies dans des zones très favorables à l'avifaune en général pour éviter la remise en question des conclusions de l'étude
+
+- Conséquences : haies d'au minimum 50m, stratification par département, stratification par typologie de haie...mais cette typologie n'est pas disponible (utilisation d'un proxy), tirage aléatoire pour rigueur statistique
+
+- Objectif de 1200 points pour puissance statistique, organisés en "cluster" pour maximiser le terrain versus les déplacements (mais pose problème dans les strates avec peu de haies - à discuter) 
+
+---
+# Résultats de l'échantillonnage
+
+615 points échantillonnés (5 avec un seul passage)
+
+916 haies avec données complètes (suppression des "haies arrachées" et des quelques haies pour lesquelles les données n'étaient pas complètes)
+
+```{r echo=FALSE}
+setwd('C:/Users/besnard/Desktop/A TRAITER/_Acorriger/___IMMEDIAT/___SEMAINE/___A CORRIGER URGENT/donnees HAIES gd Est')
+library(ggplot2)
+
+strates<-read.csv2('strates.csv')
+strateN<-strates[,1:6]
+strateP<-strates[,7:11]
+knitr::kable(strateN, format = 'html')
+```
+
+---
+# Nombre de points par strate (en %)
+
+```{r echo=FALSE}
+knitr::kable(strateP, format = 'html')
+```
+
+---
+# Points d'observation
+```{r, echo=FALSE, out.width="75%", fig.align='center'}
+knitr::include_graphics("Points_observation.jpeg")
+```
+
+---
+# Données de terrain
+```{r, echo=FALSE, out.width="75%", fig.align='center'}
+knitr::include_graphics("Tableau3_Donnees_terrain.jpeg")
+```
+
+---
+# Terrain réalisé versus prévu
+```{r, echo=FALSE, out.width="75%", fig.align='center'}
+knitr::include_graphics("terrain_vs_prevu.jpeg")
+```
+
+
+---
+# Nombre d'espèces protégées par haie
+
+```{r echo = FALSE}
+setwd('C:/Users/besnard/Desktop/A TRAITER/_Acorriger/___IMMEDIAT/___SEMAINE/___A CORRIGER URGENT/donnees HAIES gd Est')
+
+
+data<-read.csv2('donnees_haies_habitats FINAL_prep.csv')
+data2<-read.csv2('donnees_haies_habitats FINAL_prep_queprotegSTRATE.csv')
+strate_haie<-data2$classe_haie
+
+oiseaux<-data[,41:115]
+R<-rowSums(oiseaux)
+dataggplot<-data.frame(R=R,DEPT=data$Dept)
+library(boot)
+occ<-R
+occ[occ>1]<-1
+```
+
+```{r echo = FALSE, fig.height=4, dev='svg', fig.align='center'}
+p <- ggplot(dataggplot, aes(x=R)) + 
+  geom_histogram(binwidth=1, fill="#69b3a2", color="#e9ecef", alpha=0.9)+
+  xlab('Nombre espèces protégées')+
+  ylab('Nombre de haies')
+p
+```
+
+Moins de 2% des haies n'accueillent aucune espèce protégée (N=15)
+
+Médiane du nombre d'espèces = 5 (6 quand on prend toutes les espèces)
+
+---
+# Nombre d'espèces par département
+```{r echo = FALSE, fig.height=5, dev='svg', fig.align='center'}
+boxplot(R~DEPT,data=dataggplot,xlab='Département',ylab='Nombre espèces par haie')
+```
+
+---
+# Nombre d'espèces moyen par haie
+
+```{r echo=FALSE,fig.align='center', fig.height=6}
+suppressPackageStartupMessages(library(MASS))
+suppressPackageStartupMessages(library(plotrix,quietly=T))
+res<-glm.nb(R~as.factor(Dept),data=data) # un peu de sur-dispersion initiale
+newdata<-data.frame(Dept=levels(as.factor(data$Dept)))
+pred<-predict(res,newdata=newdata,se=T)
+estim<-exp(pred$fit)
+lowIC<-exp(pred$fit-1.96*pred$se.fit)
+upIC<-exp(pred$fit+1.96*pred$se.fit)
+plotCI(1:10, estim, ui=upIC, li=lowIC,xaxt="n",xlab="Département",ylab='Abondance moyenne espèces protégées par haie',ylim=c(2,max(upIC)))
+axis(1, at=1:10, labels=newdata$Dept)
+```
+
+
+---
+# Abondance moyenne fonction vieux arbres
+
+```{r echo=FALSE,fig.align='center',out.width="50%"}
+res<-glm.nb(R~vieux,data=data) # un peu de sur-dispersion initiale
+newdata<-data.frame(vieux=c('non','oui'))
+pred<-predict(res,newdata=newdata,se=T)
+estim<-exp(pred$fit)
+lowIC<-exp(pred$fit-1.96*pred$se.fit)
+upIC<-exp(pred$fit+1.96*pred$se.fit)
+plotCI(1:2, estim, ui=upIC, li=lowIC,xaxt="n",xlab="Présence vieux arbres",ylab='Nombre moyen espèces',ylim=c(3,max(upIC)),xlim=c(0.7,2.2))
+axis(1, at=1:2, labels=newdata$vieux)
+```
+---
+# Abondance moyenne fonction hauteur
+
+```{r echo=FALSE,fig.align='center',out.width="50%"}
+res<-glm.nb(R~as.factor(hauteur), data=data) # un peu de sur-dispersion initiale
+newdata<-data.frame(hauteur=c(1,2,3,4))
+pred<-predict(res,newdata=newdata,se=T)
+estim<-exp(pred$fit)
+lowIC<-exp(pred$fit-1.96*pred$se.fit)
+upIC<-exp(pred$fit+1.96*pred$se.fit)
+plotCI(1:4, estim, ui=upIC, li=lowIC,xaxt="n",xlab="Classes de hauteurs",ylab='Nombre espèce moyen',ylim=c(0,max(upIC+1)),xlim=c(0.7,4.2))
+axis(1, at=1:4, labels=c('<1m','1 à 2m','2 à 3m','>3m'))
+
+```
+
+---
+# Probabilité de présence fonction hauteur
+
+```{r echo=FALSE,fig.align='center',out.width="50%"}
+res<-glm(occ~as.factor(hauteur),family=binomial, data=data) # un peu de sur-dispersion initiale
+newdata<-data.frame(hauteur=c(1,2,3,4))
+pred<-predict(res,newdata=newdata,se=T)
+estim<-inv.logit(pred$fit)
+lowIC<-inv.logit(pred$fit-1.96*pred$se.fit)
+upIC<-inv.logit(pred$fit+1.96*pred$se.fit)
+plotCI(1:4, estim, ui=upIC, li=lowIC,xaxt="n",xlab="Classes de hauteur",ylab='Probabilité avoir au moins une espèce protégée',ylim=c(0.30,1),xlim=c(0.7,4.2))
+axis(1, at=1:4, labels=c('<1m','1 à 2m','2 à 3m','>3m'))
+
+```
+---
+# Abondance moyenne fonction continuité
+
+```{r echo=FALSE,fig.align='center',out.width="50%"}
+res<-glm.nb(R~continuite, data=data) # un peu de sur-dispersion initiale
+newdata<-data.frame(continuite=levels(as.factor(data$continuite)))
+pred<-predict(res,newdata=newdata,se=T)
+estim<-exp(pred$fit)
+lowIC<-exp(pred$fit-1.96*pred$se.fit)
+upIC<-exp(pred$fit+1.96*pred$se.fit)
+plotCI(c(2,3,1), estim, ui=upIC, li=lowIC,xaxt="n",xlab="Continuité",ylab='Nombre espèce moyen',ylim=c(0,max(upIC+1)),xlim=c(0.7,3.2))
+axis(1, at=1:3, labels=c('bcq trouées','avec qq trouées','haie continue'))
+```
+
+---
+# Typologie des haies
+
+```{r echo=FALSE,fig.align='center', fig.height=6}
+library(ade4)
+df2<-data.frame(agri=data$agricole, bati=data$bati, foret=data$foret,lhaie=data$length,
+               longueur=data$longueur,hauteur=data$hauteur,largeur=data$largeur,
+               bande=as.factor(data$bande), vieux=as.factor(data$vieux),tetards=as.factor(data$tetards), emondes=as.factor(data$emondes),
+               cavite=as.factor(data$cavite),morts=as.factor(data$morts),plessee=as.factor(data$plessee))
+mix<-dudi.mix(df2,scannf=F,nf=2)
+s.label(mix$co,boxes=F)
+```
+
+---
+# Typologie des haies
+
+```{r echo=FALSE,fig.align='center', fig.height=6}
+s.label(mix$li,boxes=F)
+```
+
+---
+# Typologie des haies
+
+```{r echo=FALSE,fig.align='center'}
+s.label(mix$li,clabel=0,boxes=FALSE,cpoint=1,pch=1)
+s.class(mix$li, as.factor(strate_haie), add.plot = TRUE)
+```
+
+---
+# Typologie des haies
+
+```{r echo=FALSE,fig.align='center'}
+distances<-dist(mix$li)				# récupérer et calculer les distances entre les relévés (les sites)
+rp<-hclust(distances,'ward')				# réaliser un dendrogramme (hierarchical clustering) avec la méthode de ward
+plot(rp)	
+```
+---
+# Abondance moyenne fonction typologie
+
+```{r echo=FALSE,fig.align='center',out.width="50%"}
+coord1<-mix$li[,1]
+res<-glm.nb(R~coord1,data=data) # un peu de sur-dispersion initiale
+newdata<-data.frame(coord1=seq(min(coord1),max(coord1),by=0.01))
+pred<-predict(res,newdata=newdata,se=T)
+estim<-exp(pred$fit)
+lowIC<-exp(pred$fit-1.96*pred$se.fit)
+upIC<-exp(pred$fit+1.96*pred$se.fit)
+plot(estim~newdata$coord1,xlab="Coordonnees sur axe 1",ylab="Abondance moyenne espèces protégées par haie",ylim=c(0,max(upIC+1)),type='l')
+lines(lowIC~newdata$coord1,lty=2)
+lines(upIC~newdata$coord1,lty=2)
+```
+---
+# Probabilité de présence fonction typologie
+
+```{r echo=FALSE,fig.align='center',out.width="50%"}
+res<-glm(occ~coord1,family=binomial, data=data) # un peu de sur-dispersion initiale
+newdata<-data.frame(coord1=seq(min(coord1),max(coord1),by=0.01))
+pred<-predict(res,newdata=newdata,se=T)
+estim<-inv.logit(pred$fit)
+lowIC<-inv.logit(pred$fit-1.96*pred$se.fit)
+upIC<-inv.logit(pred$fit+1.96*pred$se.fit)
+plot(estim~newdata$coord1,xlab="Coordonnees sur axe 1",ylab="Probabilité avoir au moins une espèce protégée",ylim=c(0.6,1),type='l')
+lines(lowIC~newdata$coord1,lty=2)
+lines(upIC~newdata$coord1,lty=2)
+```
+
+---
+# Abondance moyenne par strate
+```{r echo=FALSE,fig.align='center',out.width="50%"}
+data2<-read.csv2('donnees_haies_habitats FINAL_prep_queprotegSTRATE.csv')
+strate_haie<-data2$classe_haie
+res<-glm.nb(R~as.factor(strate_haie), data=data) # un peu de sur-dispersion initiale
+newdata<-data.frame(strate_haie=c(1,2,3,4))
+pred<-predict(res,newdata=newdata,se=T)
+estim<-exp(pred$fit)
+lowIC<-exp(pred$fit-1.96*pred$se.fit)
+upIC<-exp(pred$fit+1.96*pred$se.fit)
+plotCI(1:4, estim, ui=upIC, li=lowIC,xaxt="n",xlab="Strate de densité de haies",ylab='Nombre espèce moyen',ylim=c(0,max(upIC+1)),xlim=c(0.7,4.2))
+axis(1, at=1:4, labels=c('cl.1','cl.2','cl.3','cl.4'))
+```
+
+---
+# Probabilité de présence par strate
+```{r echo=FALSE,fig.align='center',out.width="50%"}
+res<-glm(occ~as.factor(strate_haie),family=binomial, data=data) # un peu de sur-dispersion initiale
+newdata<-data.frame(strate_haie=c(1,2,3,4))
+pred<-predict(res,newdata=newdata,se=T)
+estim<-inv.logit(pred$fit)
+lowIC<-inv.logit(pred$fit-1.96*pred$se.fit)
+upIC<-inv.logit(pred$fit+1.96*pred$se.fit)
+plotCI(1:4, estim, ui=upIC, li=lowIC,xaxt="n",xlab="Strate de densité de haies",ylab='Probabilité de présence au moins une espèce protégée',ylim=c(0.8,1),xlim=c(0.7,4.2))
+axis(1, at=1:4, labels=c('cl.1','cl.2','cl.3','cl.4'))
+```
+
+---
+# Perspectives analyses
+
+- Inclure le cluster pour gérer la pseudo-réplication (susceptible de faire baisser la précision)
+
+- Modéliser la proba de détection des espèces selon la date de passage et météo (pour corriger éventuellement des sous-estimations - Multi Species Occupancy Models) + permet de gérer les points avec un seul passage
+
+- Analyser la longueur de haie réellement échantillonnée (SIG)
+
+- Calculer des métriques paysagères plus fines ?
+
+- Formaliser la stratégie d'analyse (test de toutes les variables ?)
+
+En bonus (questions plus générales): 
+
+- Analyser les données avec toutes les espèces, travailler sur les cortèges, etc
+
+- Analyser les données à l'échelle des points
+
+
+
+---
+# Perspectives terrain & base de données
+
+- Renforcer les strates faibles (surtout 1)
+
+- Attention à bien relever toutes les variables
+
+- Homogénéiser les noms dans la base (majuscules/minuscules, espaces, < au lieu de >)
+
+- Répéter cette manip dans 10 ans pour faire du suivi (strès bon état 0) ?
